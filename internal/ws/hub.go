@@ -28,14 +28,12 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
-			// mijozni ro'yxatga olish
 			h.Logger.Info("Client", zap.String("address", client.Conn.RemoteAddr().String()))
 			if _, ok := h.Rooms[client.Room]; !ok {
 				h.Rooms[client.Room] = make(map[*Client]bool)
 			}
 			h.Rooms[client.Room][client] = true
 		case client := <-h.Unregister:
-			// mijozni ro'yxatdan o'tkazish
 			h.Logger.Info("Client uzuldi", zap.String("address", client.Conn.RemoteAddr().String()))
 			if _, ok := h.Rooms[client.Room][client]; ok {
 				delete(h.Rooms[client.Room], client)
@@ -45,7 +43,6 @@ func (h *Hub) Run() {
 				}
 			}
 		case msg := <-h.Broadcast:
-			// xabarni barcha mijozlarga yuborish
 			h.Logger.Info("Broadcast", zap.ByteString("data", msg.Data))
 			for room := range h.Rooms[msg.Room] {
 				select {
