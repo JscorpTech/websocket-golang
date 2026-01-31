@@ -22,6 +22,7 @@ func (c *Client) ReadPump(hub *Hub) {
 		c.Conn.Close()
 	}()
 
+	c.Conn.SetReadLimit(1024 * 1024)
 	for {
 		_, msg, err := c.Conn.ReadMessage()
 		if err != nil {
