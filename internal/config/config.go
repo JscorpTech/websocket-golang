@@ -20,8 +20,8 @@ func NewConfig() *Config {
 		panic("Failed to parse RSA public key: " + err.Error())
 	}
 	return &Config{
-		RedisAddr:     "127.0.0.1:6379",
-		RedisPassword: "",
+		RedisAddr:     os.Getenv("REDIS_ADDR"),
+		RedisPassword: os.Getenv("REDIS_PASSWORD"),
 		RedisDB:       0,
 		PublicKEY:     pubKey,
 	}
