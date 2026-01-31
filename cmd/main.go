@@ -77,6 +77,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	router := gin.Default()
+	router.RedirectTrailingSlash = false
+	router.RedirectFixedPath = false
 	gin.SetMode(gin.ReleaseMode) // gin release mode
 
 	conf := config.NewConfig()
@@ -101,7 +103,7 @@ func main() {
 	redisWatcher := watcher.NewRedisHandler(ctx, hub, rdb, logger)
 	go redisWatcher.Watch()
 
-	router.GET("/ws", func(c *gin.Context) {
+	router.GET("/ws/events", func(c *gin.Context) {
 		serveWs(c.Request, c.Writer, hub, logger, conf)
 	})
 	router.GET("/health", func(c *gin.Context) {
