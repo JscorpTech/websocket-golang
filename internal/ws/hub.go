@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"github.com/JscorpTech/websocket/internal/metrics"
 	"go.uber.org/zap"
 )
 
@@ -33,6 +34,7 @@ func (h *Hub) Run() {
 				h.Rooms[client.Room] = make(map[*Client]bool)
 			}
 			h.Rooms[client.Room][client] = true
+			metrics.ActiveConnections.Inc()
 		case client := <-h.Unregister:
 			h.Logger.Info("Client uzuldi", zap.String("address", client.Conn.RemoteAddr().String()))
 			if _, ok := h.Rooms[client.Room][client]; ok {
@@ -41,11 +43,13 @@ func (h *Hub) Run() {
 				if len(h.Rooms[client.Room]) == 0 {
 					delete(h.Rooms, client.Room)
 				}
+				metrics.ActiveConnections.Dec()
 			}
 		case msg := <-h.Broadcast:
 			for room := range h.Rooms[msg.Room] {
 				select {
 				case room.Send <- msg:
+					metrics.BroadcastMessages.Inc()
 				default:
 					close(room.Send)
 					delete(h.Rooms[msg.Room], room)

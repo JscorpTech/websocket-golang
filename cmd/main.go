@@ -12,10 +12,13 @@ import (
 
 	"github.com/JscorpTech/websocket/internal/auth"
 	"github.com/JscorpTech/websocket/internal/config"
+	"github.com/JscorpTech/websocket/internal/metrics"
 	"github.com/JscorpTech/websocket/internal/watcher"
 	"github.com/JscorpTech/websocket/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -76,6 +79,11 @@ func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Lo
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	reg := prometheus.NewRegistry()
+	reg.Register(metrics.ActiveConnections)
+	reg.Register(metrics.BroadcastMessages)
+
 	router := gin.Default()
 	gin.SetMode(gin.ReleaseMode) // gin release mode
 
@@ -101,6 +109,7 @@ func main() {
 	redisWatcher := watcher.NewRedisHandler(ctx, hub, rdb, logger)
 	go redisWatcher.Watch()
 
+	router.GET("/ws/metrics", gin.WrapH(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
 	router.GET("/ws/events", func(c *gin.Context) {
 		serveWs(c.Request, c.Writer, hub, logger, conf)
 	})
