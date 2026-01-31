@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 var upgrader = websocket.Upgrader{
@@ -23,10 +23,10 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub) {
+func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Logger) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("Websocketga ulanishda xatolik yuzb erdi : %v\n", err)
+		logger.Error("Websocketga ulanishda xatolik yuzb erdi", zap.Error(err))
 		return
 	}
 	client := &ws.Client{Conn: conn, Send: make(chan *ws.Message), Room: "default"}
@@ -42,7 +42,7 @@ func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub) {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Printf("Xabar o'qishda xatolik yuz berdi: %v\n", err)
+			logger.Error("Xabar o'qishda xatolik yuz berdi", zap.Error(err))
 			break
 		}
 		hub.Broadcast <- &ws.Message{Data: message, Room: "default"}
@@ -54,21 +54,26 @@ func main() {
 	defer cancel()
 	router := gin.Default()
 	config := config.NewConfig()
-	hub := ws.NewHub()
+	logger, err := zap.NewProduction()
+	if err != nil {
+		fmt.Println("Logger ishga tushmadi")
+		return
+	}
+	hub := ws.NewHub(logger)
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     config.RedisAddr,
 		Password: config.RedisPassword,
 		DB:       config.RedisDB,
 	})
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		fmt.Println("Regisga ulanishda xatolik yuz berdi")
+		logger.Error("Regisga ulanishda xatolik yuz berdi", zap.Error(err))
 		return
 	}
 
 	go hub.Run()
 
 	router.GET("/ws", func(c *gin.Context) {
-		serveWs(c.Request, c.Writer, hub)
+		serveWs(c.Request, c.Writer, hub, logger)
 	})
 	router.GET("/health", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
@@ -89,9 +94,9 @@ func main() {
 	}
 
 	go func() {
-		fmt.Println("server ishga tushdi :8080")
+		logger.Info("server ishga tushdi :8080")
 		if err := srv.ListenAndServe(); err != nil {
-			fmt.Println("xatolik yuz berdi")
+			logger.Error("xatolik yuz berdi", zap.Error(err))
 		}
 	}()
 	stop := make(chan os.Signal, 1)
@@ -99,7 +104,7 @@ func main() {
 	<-stop
 	ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Serverni to'xtatishda xatolik yuz berdi")
+		logger.Fatal("Serverni to'xtatishda xatolik yuz berdi")
 	}
-	fmt.Println("Server to'xtatildi")
+	logger.Info("Server to'xtatildi")
 }

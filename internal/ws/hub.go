@@ -1,7 +1,7 @@
 package ws
 
 import (
-	"fmt"
+	"go.uber.org/zap"
 )
 
 type Hub struct {
@@ -10,31 +10,33 @@ type Hub struct {
 	Register   chan *Client
 	Unregister chan *Client
 	Broadcast  chan *Message
+	Logger     *zap.Logger
 }
 
-func NewHub() *Hub {
+func NewHub(logger *zap.Logger) *Hub {
 	return &Hub{
 		Rooms:      make(map[string]map[*Client]bool),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
 		Broadcast:  make(chan *Message),
+		Logger:     logger,
 	}
 }
 
 func (h *Hub) Run() {
-	fmt.Printf("Hub ishga tushdi\n")
+	h.Logger.Info("Hub ishga tushdi")
 	for {
 		select {
 		case client := <-h.Register:
 			// mijozni ro'yxatga olish
-			fmt.Printf("Client: %v\n", client.Conn.RemoteAddr())
+			h.Logger.Info("Client", zap.String("address", client.Conn.RemoteAddr().String()))
 			if _, ok := h.Rooms[client.Room]; !ok {
 				h.Rooms[client.Room] = make(map[*Client]bool)
 			}
 			h.Rooms[client.Room][client] = true
 		case client := <-h.Unregister:
 			// mijozni ro'yxatdan o'tkazish
-			fmt.Printf("Client uzuldi: %s\n", client.Conn.RemoteAddr())
+			h.Logger.Info("Client uzuldi", zap.String("address", client.Conn.RemoteAddr().String()))
 			if _, ok := h.Rooms[client.Room][client]; ok {
 				delete(h.Rooms[client.Room], client)
 				close(client.Send)
@@ -44,7 +46,7 @@ func (h *Hub) Run() {
 			}
 		case msg := <-h.Broadcast:
 			// xabarni barcha mijozlarga yuborish
-			fmt.Printf("Xabar qabul qilindi: %s\n", msg.Data)
+			h.Logger.Info("Xabar qabul qilindi", zap.ByteString("data", msg.Data))
 			for room := range h.Rooms[msg.Room] {
 				select {
 				case room.Send <- msg:
