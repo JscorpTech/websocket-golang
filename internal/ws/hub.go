@@ -43,7 +43,6 @@ func (h *Hub) Run() {
 				}
 			}
 		case msg := <-h.Broadcast:
-			h.Logger.Info("Broadcast", zap.ByteString("data", msg.Data))
 			for room := range h.Rooms[msg.Room] {
 				select {
 				case room.Send <- msg:
