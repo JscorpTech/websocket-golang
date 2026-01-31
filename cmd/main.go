@@ -62,18 +62,10 @@ func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Lo
 	go client.ReadPump(hub)
 
 	hub.Register <- client
-	defer func() {
-		hub.Unregister <- client
-		conn.Close()
-	}()
-	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			logger.Error("Xabar o'qishda xatolik yuz berdi", zap.Error(err))
-			break
-		}
-		hub.Broadcast <- &ws.Message{Data: message, Room: "default"}
-	}
+	// defer func() {
+	// 	hub.Unregister <- client
+	// 	conn.Close()
+	// }()
 }
 
 func main() {
