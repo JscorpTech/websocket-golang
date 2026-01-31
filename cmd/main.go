@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/JscorpTech/websocket/internal/auth"
 	"github.com/JscorpTech/websocket/internal/config"
+	"github.com/JscorpTech/websocket/internal/watcher"
 	"github.com/JscorpTech/websocket/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -23,13 +26,34 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Logger) {
+func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Logger, conf *config.Config) {
+	query := r.URL.Query()
+	token := query.Get("token")
+	if token == "" {
+		logger.Info("Token topilmadi")
+		http.Error(w, "Token topilmadi", http.StatusUnauthorized)
+		return
+	}
+	claimData, err := auth.VerifyAndParseJWT(token, conf.PublicKEY)
+	if err != nil {
+		logger.Error("token verification error", zap.Error(err))
+		http.Error(w, "Token xato", http.StatusUnauthorized)
+		return
+	}
+	userIDRaw, ok := claimData["user_id"]
+	if !ok {
+		logger.Info("claim data ichida user_id mavjud emas")
+		http.Error(w, "user id mavjud emas", http.StatusInternalServerError)
+		return
+	}
+	userIDFloat, _ := userIDRaw.(float64)
+	userIDStr := strconv.FormatFloat(userIDFloat, 'f', -1, 64)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Error("Websocketga ulanishda xatolik yuzb erdi", zap.Error(err))
 		return
 	}
-	client := &ws.Client{Conn: conn, Send: make(chan *ws.Message), Room: "default"}
+	client := &ws.Client{Conn: conn, Send: make(chan *ws.Message), Room: "user_" + userIDStr}
 
 	go client.WritePump()
 	go client.ReadPump(hub)
@@ -53,17 +77,18 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	router := gin.Default()
-	config := config.NewConfig()
+	conf := config.NewConfig()
 	logger, err := zap.NewProduction()
+
 	if err != nil {
 		fmt.Println("Logger ishga tushmadi")
 		return
 	}
 	hub := ws.NewHub(logger)
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     config.RedisAddr,
-		Password: config.RedisPassword,
-		DB:       config.RedisDB,
+		Addr:     conf.RedisAddr,
+		Password: conf.RedisPassword,
+		DB:       conf.RedisDB,
 	})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		logger.Error("Regisga ulanishda xatolik yuz berdi", zap.Error(err))
@@ -71,9 +96,11 @@ func main() {
 	}
 
 	go hub.Run()
+	redisWatcher := watcher.NewRedisHandler(ctx, hub, rdb, logger)
+	go redisWatcher.Watch()
 
 	router.GET("/ws", func(c *gin.Context) {
-		serveWs(c.Request, c.Writer, hub, logger)
+		serveWs(c.Request, c.Writer, hub, logger, conf)
 	})
 	router.GET("/health", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*5)

@@ -46,7 +46,7 @@ func (h *Hub) Run() {
 			}
 		case msg := <-h.Broadcast:
 			// xabarni barcha mijozlarga yuborish
-			h.Logger.Info("Xabar qabul qilindi", zap.ByteString("data", msg.Data))
+			h.Logger.Info("Broadcast", zap.ByteString("data", msg.Data))
 			for room := range h.Rooms[msg.Room] {
 				select {
 				case room.Send <- msg:
