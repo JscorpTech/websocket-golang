@@ -77,8 +77,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	router := gin.Default()
-	router.RedirectTrailingSlash = false
-	router.RedirectFixedPath = false
 	gin.SetMode(gin.ReleaseMode) // gin release mode
 
 	conf := config.NewConfig()
