@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/JscorpTech/websocket/internal/config"
 	"github.com/JscorpTech/websocket/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -22,7 +23,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func echo(r *http.Request, w http.ResponseWriter, hub *ws.Hub) {
+func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		fmt.Printf("Websocketga ulanishda xatolik yuzb erdi : %v\n", err)
@@ -44,8 +45,7 @@ func echo(r *http.Request, w http.ResponseWriter, hub *ws.Hub) {
 			fmt.Printf("Xabar o'qishda xatolik yuz berdi: %v\n", err)
 			break
 		}
-		fmt.Printf("Qabul qilingan xabar: %s\n", message)
-		hub.Broadcast <- &ws.Message{Data: []byte("salom"), Room: "default"}
+		hub.Broadcast <- &ws.Message{Data: message, Room: "default"}
 	}
 }
 
@@ -53,11 +53,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	router := gin.Default()
+	config := config.NewConfig()
 	hub := ws.NewHub()
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
-		Password: "",
-		DB:       0,
+		Addr:     config.RedisAddr,
+		Password: config.RedisPassword,
+		DB:       config.RedisDB,
 	})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		fmt.Println("Regisga ulanishda xatolik yuz berdi")
@@ -67,9 +68,18 @@ func main() {
 	go hub.Run()
 
 	router.GET("/ws", func(c *gin.Context) {
-		echo(c.Request, c.Writer, hub)
+		serveWs(c.Request, c.Writer, hub)
 	})
 	router.GET("/health", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+		defer cancel()
+		if err := rdb.Ping(ctx).Err(); err != nil {
+			fmt.Println(err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": "error",
+			})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
