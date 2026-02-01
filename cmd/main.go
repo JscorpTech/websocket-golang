@@ -98,7 +98,7 @@ func main() {
 	}
 
 	go hub.Run()
-	redisWatcher := watcher.NewRedisHandler(ctx, hub, rdb, logger)
+	redisWatcher := watcher.NewRedisHandler(ctx, conf, hub, rdb, logger)
 	go redisWatcher.Watch()
 
 	router.GET("/ws/metrics", gin.WrapH(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/JscorpTech/websocket/internal/config"
 	"github.com/JscorpTech/websocket/internal/ws"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -15,6 +16,7 @@ type RedisHandler struct {
 	ctx    context.Context
 	rdb    *redis.Client
 	hub    *ws.Hub
+	conf   *config.Config
 }
 
 type Message struct {
@@ -22,19 +24,20 @@ type Message struct {
 	Data json.RawMessage `json:"data"`
 }
 
-func NewRedisHandler(ctx context.Context, hub *ws.Hub, rdb *redis.Client, logger *zap.Logger) *RedisHandler {
+func NewRedisHandler(ctx context.Context, conf *config.Config, hub *ws.Hub, rdb *redis.Client, logger *zap.Logger) *RedisHandler {
 	return &RedisHandler{
 		Logger: logger,
 		ctx:    ctx,
 		rdb:    rdb,
 		hub:    hub,
+		conf:   conf,
 	}
 }
 
 func (r *RedisHandler) Watch() {
 	r.Logger.Info("Watching Redis events...")
 	for {
-		pubsub := r.rdb.Subscribe(r.ctx, "websocket")
+		pubsub := r.rdb.Subscribe(r.ctx, r.conf.ChannelName)
 		r.Logger.Info("Subscribed to Redis channel")
 
 		for msg := range pubsub.Channel() {

@@ -12,6 +12,7 @@ type Config struct {
 	RedisPassword string
 	RedisDB       int
 	PublicKEY     *rsa.PublicKey
+	ChannelName   string
 }
 
 func NewConfig() *Config {
@@ -24,5 +25,6 @@ func NewConfig() *Config {
 		RedisPassword: os.Getenv("REDIS_PASSWORD"),
 		RedisDB:       0,
 		PublicKEY:     pubKey,
+		ChannelName:   "websocket",
 	}
 }
