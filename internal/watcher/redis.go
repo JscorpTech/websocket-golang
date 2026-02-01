@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/JscorpTech/websocket/internal/ws"
 	"github.com/redis/go-redis/v9"
@@ -32,18 +33,24 @@ func NewRedisHandler(ctx context.Context, hub *ws.Hub, rdb *redis.Client, logger
 
 func (r *RedisHandler) Watch() {
 	r.Logger.Info("Watching Redis events...")
-	pubsub := r.rdb.Subscribe(r.ctx, "websocket")
-	defer pubsub.Close()
-	for msg := range pubsub.Channel() {
-		var payload Message
-		if err := json.Unmarshal([]byte(msg.Payload), &payload); err != nil {
-			r.Logger.Error("Failed to unmarshal Redis message", zap.Error(err))
-			continue
+	for {
+		pubsub := r.rdb.Subscribe(r.ctx, "websocket")
+		r.Logger.Info("Subscribed to Redis channel")
+
+		for msg := range pubsub.Channel() {
+			var payload Message
+			if err := json.Unmarshal([]byte(msg.Payload), &payload); err != nil {
+				r.Logger.Error("Failed to unmarshal Redis message", zap.Error(err))
+				continue
+			}
+			r.hub.Broadcast <- &ws.Message{
+				Room: payload.Room,
+				Data: payload.Data,
+			}
+			r.Logger.Info("Received message from Redis", zap.Any("payload", payload))
 		}
-		r.hub.Broadcast <- &ws.Message{
-			Room: payload.Room,
-			Data: payload.Data,
-		}
-		r.Logger.Info("Received message from Redis", zap.Any("payload", payload))
+		r.Logger.Warn("Redis pubsub channel closed. Reconnecting in 1s...")
+		pubsub.Close()
+		time.Sleep(1 * time.Second)
 	}
 }
