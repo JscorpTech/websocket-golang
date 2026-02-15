@@ -12,8 +12,8 @@ import (
 
 	"github.com/JscorpTech/websocket/internal/auth"
 	"github.com/JscorpTech/websocket/internal/config"
+	"github.com/JscorpTech/websocket/internal/handlers"
 	"github.com/JscorpTech/websocket/internal/metrics"
-	"github.com/JscorpTech/websocket/internal/watcher"
 	"github.com/JscorpTech/websocket/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -98,8 +98,18 @@ func main() {
 	}
 
 	go hub.Run()
-	redisWatcher := watcher.NewRedisHandler(ctx, conf, hub, rdb, logger)
-	go redisWatcher.Watch()
+	var handler handlers.Handler
+	handler = handlers.NewRedisHandler(ctx, conf, hub, rdb, logger)
+	messages := handler.Watch(ctx)
+	go func() {
+		for msg := range messages {
+			hub.Broadcast <- &ws.Message{
+				Room: msg.Room,
+				Data: msg.Data,
+			}
+			logger.Info("Received message", zap.Any("payload", msg))
+		}
+	}()
 
 	router.GET("/ws/metrics", gin.WrapH(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
 	router.GET("/ws/events", func(c *gin.Context) {

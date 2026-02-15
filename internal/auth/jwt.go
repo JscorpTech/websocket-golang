@@ -12,6 +12,7 @@ import (
 
 func ParseRSAPublicKeyFromPEM(pubPEM []byte) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode(pubPEM)
+
 	if block == nil || block.Type != "PUBLIC KEY" {
 		return nil, errors.New("invalid public key PEM")
 	}
