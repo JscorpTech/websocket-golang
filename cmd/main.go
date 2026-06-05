@@ -56,7 +56,11 @@ func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Lo
 		logger.Error("Websocketga ulanishda xatolik yuzb erdi", zap.Error(err))
 		return
 	}
-	client := &ws.Client{Conn: conn, Send: make(chan *ws.Message), Room: "user_" + userIDStr}
+	// Send kanali BUFERLI bo'lishi shart: node_execution burst'larida (bitta
+	// interaksiya = millisekundlarda 6-10 event) bufersiz kanal band bo'lib,
+	// hub'dagi non-blocking send `default`ga tushar va klientni DARHOL uzib
+	// yuborardi ("juda tez uzulib qayta ulanish" + yo'qolgan eventlar).
+	client := &ws.Client{Conn: conn, Send: make(chan *ws.Message, 256), Room: "user_" + userIDStr}
 
 	go client.WritePump()
 	go client.ReadPump(hub)
