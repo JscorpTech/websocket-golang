@@ -1,12 +1,12 @@
 replicaCount: 1
 
 image:
-  repository: registry.jscorp.uz/websocket
+  repository: registry.iprogrammer.uz/botspace/websocket
   tag: "954af40"
   pullPolicy: Always
 
 imagePullSecrets:
-  - name: botmother-registry
+  - name: iprogrammer-registry
 
 fullnameOverride: "websocket"
 
