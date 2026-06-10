@@ -23,9 +23,28 @@ import (
 	"go.uber.org/zap"
 )
 
+// allowedOrigins, agar to'ldirilgan bo'lsa, WebSocket upgrade'da Origin
+// header'ini cheklaydi (CSWSH himoyasi). Bo'sh bo'lsa — barcha Origin'larga
+// ruxsat (auth baribir query-token orqali amalga oshadi).
+var allowedOrigins []string
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		if len(allowedOrigins) == 0 {
+			return true
+		}
+		origin := r.Header.Get("Origin")
+		// Origin yo'q (native/server klient) — ruxsat. Brauzer CSWSH'da
+		// doim Origin yuboradi, shuning uchun bu cheklov brauzerlarga ta'sir qiladi.
+		if origin == "" {
+			return true
+		}
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				return true
+			}
+		}
+		return false
 	},
 }
 
@@ -90,7 +109,9 @@ func main() {
 		fmt.Println("Logger ishga tushmadi")
 		return
 	}
+	allowedOrigins = conf.AllowedOrigins
 	hub := ws.NewHub(logger)
+	hub.MaxConnsPerUser = conf.MaxConnsPerUser
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     conf.RedisAddr,
 		Password: conf.RedisPassword,

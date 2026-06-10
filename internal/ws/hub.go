@@ -12,6 +12,9 @@ type Hub struct {
 	Unregister chan *Client
 	Broadcast  chan *Message
 	Logger     *zap.Logger
+	// MaxConnsPerUser: bitta xona (user_<id>) uchun ulanish chegarasi.
+	// 0 yoki manfiy bo'lsa cheklanmaydi.
+	MaxConnsPerUser int
 }
 
 func NewHub(logger *zap.Logger) *Hub {
@@ -32,6 +35,18 @@ func (h *Hub) Run() {
 			h.Logger.Info("Client", zap.String("address", client.Conn.RemoteAddr().String()))
 			if _, ok := h.Rooms[client.Room]; !ok {
 				h.Rooms[client.Room] = make(map[*Client]bool)
+			}
+			// Per-user ulanish chegarasi — bitta foydalanuvchi cheksiz ulanish
+			// ochib resursni tugata olmasin (DoS). Chegaradan oshsa yangi
+			// ulanishni rad etamiz: Send'ni yopamiz (WritePump tugaydi) va
+			// Conn'ni yopamiz (ReadPump tugaydi). Xonaga qo'shilmaydi.
+			if h.MaxConnsPerUser > 0 && len(h.Rooms[client.Room]) >= h.MaxConnsPerUser {
+				h.Logger.Warn("Per-user ulanish chegarasi oshdi, rad etildi",
+					zap.String("room", client.Room),
+					zap.Int("limit", h.MaxConnsPerUser))
+				close(client.Send)
+				client.Conn.Close()
+				continue
 			}
 			h.Rooms[client.Room][client] = true
 			metrics.ActiveConnections.Inc()
