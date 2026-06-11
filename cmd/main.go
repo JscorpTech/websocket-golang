@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -136,6 +139,23 @@ func main() {
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		logger.Error("Regisga ulanishda xatolik yuz berdi", zap.Error(err))
 		return
+	}
+
+	// Collab op'larini bazaga saqlash uchun backend worker'ga uzatamiz:
+	// project xonasidagi har bir client op'ini `collab_ops` Redis kanaliga
+	// e'lon qilamiz. Backend `collab_persist_worker` uni o'qib project.flow'ga
+	// yozadi. Relay (jonli sync) baribir ishlaydi — bu qo'shimcha kanal.
+	hub.Persist = func(room string, data []byte) {
+		payload, err := json.Marshal(map[string]string{
+			"project_id": strings.TrimPrefix(room, "project_"),
+			"data":       base64.StdEncoding.EncodeToString(data),
+		})
+		if err != nil {
+			return
+		}
+		if err := rdb.Publish(ctx, "collab_ops", payload).Err(); err != nil {
+			logger.Warn("collab op persist publish xatosi", zap.Error(err))
+		}
 	}
 
 	go hub.Run()

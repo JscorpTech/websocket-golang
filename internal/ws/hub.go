@@ -1,6 +1,8 @@
 package ws
 
 import (
+	"strings"
+
 	"github.com/JscorpTech/websocket/internal/metrics"
 	"go.uber.org/zap"
 )
@@ -15,6 +17,9 @@ type Hub struct {
 	// MaxConnsPerUser: bitta xona (user_<id>) uchun ulanish chegarasi.
 	// 0 yoki manfiy bo'lsa cheklanmaydi.
 	MaxConnsPerUser int
+	// Persist: client-originated collab op'ni bazaga saqlash uchun (backend
+	// worker'ga uzatadi). nil bo'lsa — saqlanmaydi (faqat relay).
+	Persist func(room string, data []byte)
 }
 
 func NewHub(logger *zap.Logger) *Hub {
@@ -61,6 +66,12 @@ func (h *Hub) Run() {
 				metrics.ActiveConnections.Dec()
 			}
 		case msg := <-h.Broadcast:
+			// Client-originated binary op'ni project xonasida bazaga saqlash
+			// uchun uzatamiz (relay'dan tashqari). Backend event'lari (Sender
+			// nil) yoki text/user-room xabarlari saqlanmaydi.
+			if h.Persist != nil && msg.Sender != nil && msg.Binary && strings.HasPrefix(msg.Room, "project_") {
+				h.Persist(msg.Room, msg.Data)
+			}
 			for room := range h.Rooms[msg.Room] {
 				// Collab op'ni yuboruvchining o'ziga qaytarmaymiz (echo yo'q).
 				if msg.Sender != nil && room == msg.Sender {
