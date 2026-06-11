@@ -70,6 +70,22 @@ func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Lo
 	}
 	userIDFloat, _ := userIDRaw.(float64)
 	userIDStr := strconv.FormatFloat(userIDFloat, 'f', -1, 64)
+
+	// Xona: default — user_<id> (release/debug/node_execution event'lari uchun).
+	// Token ichida `project_id` claim bo'lsa (backend egalik tekshirib bergan
+	// collab-token), real-time kollaboratsiya uchun project_<id> xonasi.
+	room := "user_" + userIDStr
+	if pidRaw, ok := claimData["project_id"]; ok {
+		switch v := pidRaw.(type) {
+		case float64:
+			room = "project_" + strconv.FormatFloat(v, 'f', -1, 64)
+		case string:
+			if v != "" {
+				room = "project_" + v
+			}
+		}
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Error("Websocketga ulanishda xatolik yuzb erdi", zap.Error(err))
@@ -79,7 +95,7 @@ func serveWs(r *http.Request, w http.ResponseWriter, hub *ws.Hub, logger *zap.Lo
 	// interaksiya = millisekundlarda 6-10 event) bufersiz kanal band bo'lib,
 	// hub'dagi non-blocking send `default`ga tushar va klientni DARHOL uzib
 	// yuborardi ("juda tez uzulib qayta ulanish" + yo'qolgan eventlar).
-	client := &ws.Client{Conn: conn, Send: make(chan *ws.Message, 256), Room: "user_" + userIDStr}
+	client := &ws.Client{Conn: conn, Send: make(chan *ws.Message, 256), Room: room}
 
 	go client.WritePump()
 	go client.ReadPump(hub)

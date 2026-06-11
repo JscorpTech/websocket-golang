@@ -62,6 +62,10 @@ func (h *Hub) Run() {
 			}
 		case msg := <-h.Broadcast:
 			for room := range h.Rooms[msg.Room] {
+				// Collab op'ni yuboruvchining o'ziga qaytarmaymiz (echo yo'q).
+				if msg.Sender != nil && room == msg.Sender {
+					continue
+				}
 				select {
 				case room.Send <- msg:
 					metrics.BroadcastMessages.Inc()

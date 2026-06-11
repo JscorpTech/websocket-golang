@@ -12,7 +12,11 @@ type Client struct {
 
 func (c *Client) WritePump() {
 	for msg := range c.Send {
-		c.Conn.WriteMessage(websocket.TextMessage, msg.Data)
+		frameType := websocket.TextMessage
+		if msg.Binary {
+			frameType = websocket.BinaryMessage
+		}
+		c.Conn.WriteMessage(frameType, msg.Data)
 	}
 }
 
@@ -24,13 +28,18 @@ func (c *Client) ReadPump(hub *Hub) {
 
 	c.Conn.SetReadLimit(1024 * 1024)
 	for {
-		_, msg, err := c.Conn.ReadMessage()
+		msgType, msg, err := c.Conn.ReadMessage()
 		if err != nil {
 			break
 		}
+		// Client-originated xabar (collab op) — xona ichidagi BOSHQA
+		// klientlarga relay qilinadi (Sender o'ziga qaytmaydi). Frame turi
+		// (binary/text) saqlanadi.
 		hub.Broadcast <- &Message{
-			Data: msg,
-			Room: c.Room,
+			Data:   msg,
+			Room:   c.Room,
+			Binary: msgType == websocket.BinaryMessage,
+			Sender: c,
 		}
 	}
 }
