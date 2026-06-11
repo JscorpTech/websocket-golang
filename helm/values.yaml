@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: registry.iprogrammer.uz/botspace/websocket
-  tag: "f2b12fc"
+  tag: "1efa5fd"
   pullPolicy: Always
 
 imagePullSecrets:
