@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -117,6 +118,9 @@ func main() {
 	reg := prometheus.NewRegistry()
 	reg.Register(metrics.ActiveConnections)
 	reg.Register(metrics.BroadcastMessages)
+	// Go runtime + process metrikalari (go_goroutines, go_memstats_*, process_*).
+	reg.Register(collectors.NewGoCollector())
+	reg.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	router := gin.Default()
 	gin.SetMode(gin.ReleaseMode) // gin release mode
